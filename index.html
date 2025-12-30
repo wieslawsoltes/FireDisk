@@ -310,16 +310,28 @@
       }
 
       .graph-toolbar {
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
+        gap: 6px 12px;
         align-items: center;
-        gap: 12px;
       }
 
-      .graph-toolbar .search {
-        flex: 1 1 240px;
-        display: grid;
-        gap: 6px;
+      .graph-toolbar label {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .graph-toolbar input[type="search"] {
+        grid-column: 1;
+        grid-row: 2;
+        align-self: center;
+      }
+
+      .graph-toolbar #zoomOut {
+        grid-column: 2;
+        grid-row: 2;
+        align-self: center;
       }
 
       .graph-layout {
@@ -536,6 +548,17 @@
           padding: 28px 16px 48px;
         }
 
+        .graph-toolbar {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto auto auto;
+        }
+
+        .graph-toolbar #zoomOut {
+          grid-column: 1;
+          grid-row: 3;
+          justify-self: start;
+        }
+
         .graph-layout {
           grid-template-columns: 1fr;
         }
@@ -629,14 +652,12 @@
           <div class="view-meta" id="viewMeta"></div>
         </div>
         <div class="graph-toolbar">
-          <div class="search">
-            <label for="searchInput">Search</label>
-            <input
-              id="searchInput"
-              type="search"
-              placeholder="Type to highlight folders or files"
-            />
-          </div>
+          <label for="searchInput">Search</label>
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="Type to highlight folders or files"
+          />
           <button id="zoomOut" class="ghost" type="button" disabled>Zoom Out</button>
         </div>
         <div class="graph-layout">
