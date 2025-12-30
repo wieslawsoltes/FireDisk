@@ -1,0 +1,1894 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FireDisk Flame Graph</title>
+    <style>
+      :root {
+        --bg-ink: #0f1b1e;
+        --bg-deep: #10262a;
+        --bg-sand: #f3efe4;
+        --bg-cream: #fbf8f0;
+        --accent: #1d8b87;
+        --accent-2: #e07a42;
+        --accent-3: #d0a114;
+        --accent-cool: #5bb2a8;
+        --card: rgba(255, 253, 246, 0.9);
+        --card-strong: rgba(255, 253, 246, 0.98);
+        --shadow: 0 24px 60px rgba(15, 27, 30, 0.18);
+        --stroke: rgba(12, 22, 24, 0.12);
+        --grid: rgba(12, 22, 24, 0.06);
+        --radius: 18px;
+        --radius-sm: 12px;
+        --font-body: "Gill Sans", "Optima", "Candara", "Trebuchet MS", sans-serif;
+        --font-display: "Palatino Linotype", "Book Antiqua", "Palatino", "Georgia", serif;
+        --font-mono: "Fira Mono", "Consolas", "Courier New", monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: var(--font-body);
+        color: var(--bg-ink);
+        background-image:
+          radial-gradient(circle at 12% 20%, rgba(29, 139, 135, 0.18), transparent 55%),
+          radial-gradient(circle at 90% 10%, rgba(224, 122, 66, 0.2), transparent 45%),
+          radial-gradient(circle at 70% 88%, rgba(208, 161, 20, 0.22), transparent 40%),
+          linear-gradient(135deg, #f9f6ee 0%, #f1ede2 100%);
+        background-attachment: fixed;
+      }
+
+      .backdrop {
+        position: fixed;
+        inset: 0;
+        background-image:
+          repeating-linear-gradient(
+            0deg,
+            transparent 0px,
+            transparent 28px,
+            var(--grid) 28px,
+            var(--grid) 29px
+          ),
+          repeating-linear-gradient(
+            90deg,
+            transparent 0px,
+            transparent 28px,
+            var(--grid) 28px,
+            var(--grid) 29px
+          );
+        pointer-events: none;
+        opacity: 0.6;
+      }
+
+      .app {
+        position: relative;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 36px 24px 64px;
+        display: grid;
+        gap: 24px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 10px;
+        animation: rise 0.7s ease forwards;
+      }
+
+      .brand {
+        font-family: var(--font-display);
+        font-size: clamp(2.2rem, 3vw, 3.6rem);
+        letter-spacing: 0.02em;
+      }
+
+      .subtitle {
+        font-size: 1.05rem;
+        max-width: 640px;
+        color: rgba(15, 27, 30, 0.72);
+      }
+
+      .card {
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        border: 1px solid var(--stroke);
+        padding: 20px 22px;
+        backdrop-filter: blur(8px);
+        animation: rise 0.7s ease forwards;
+      }
+
+      .controls {
+        display: grid;
+        gap: 12px;
+        animation-delay: 0.05s;
+      }
+
+      .controls.card {
+        padding: 16px 18px;
+      }
+
+      .controls .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 10px 18px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        font-family: var(--font-body);
+        color: #fdfbf5;
+        background: linear-gradient(135deg, var(--accent), var(--accent-cool));
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        box-shadow: 0 12px 20px rgba(29, 139, 135, 0.3);
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+        transform: none;
+      }
+
+      button.ghost {
+        background: #f6f1e6;
+        color: var(--bg-ink);
+        box-shadow: inset 0 0 0 1px rgba(15, 27, 30, 0.14);
+      }
+
+      .hint {
+        font-size: 0.88rem;
+        color: rgba(15, 27, 30, 0.6);
+      }
+
+      .options {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+      }
+
+      .field {
+        display: grid;
+        gap: 4px;
+        padding: 8px 10px;
+        border-radius: var(--radius-sm);
+        background: rgba(255, 255, 255, 0.65);
+        border: 1px solid rgba(15, 27, 30, 0.08);
+        align-content: start;
+      }
+
+      .range-field {
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+          "label value"
+          "control control";
+        align-items: center;
+      }
+
+      .range-field label {
+        grid-area: label;
+      }
+
+      .range-field input[type="range"] {
+        grid-area: control;
+      }
+
+      .range-field .value-pill {
+        grid-area: value;
+        justify-self: end;
+      }
+
+      .toggle-field {
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 6px;
+      }
+
+      label {
+        font-size: 0.86rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(15, 27, 30, 0.6);
+      }
+
+      .controls label {
+        font-size: 0.78rem;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+      }
+
+      select,
+      input[type="search"] {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(15, 27, 30, 0.15);
+        background: #fffdf6;
+        font-family: var(--font-body);
+      }
+
+      .controls select {
+        padding: 6px 8px;
+      }
+
+      .value-pill {
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: rgba(15, 27, 30, 0.7);
+      }
+
+      .stats {
+        display: grid;
+        gap: 12px;
+        animation-delay: 0.1s;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 14px;
+      }
+
+      .stat {
+        padding: 12px;
+        border-radius: var(--radius-sm);
+        background: #fffdf6;
+        border: 1px solid rgba(15, 27, 30, 0.08);
+        display: grid;
+        gap: 6px;
+      }
+
+      .stat-label {
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: rgba(15, 27, 30, 0.55);
+      }
+
+      .stat-value {
+        font-size: 1.15rem;
+        font-weight: 600;
+      }
+
+      .status-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        font-size: 0.92rem;
+        color: rgba(15, 27, 30, 0.7);
+      }
+
+      .graph {
+        display: grid;
+        gap: 14px;
+        animation-delay: 0.15s;
+      }
+
+      .graph-header {
+        display: grid;
+        gap: 8px;
+      }
+
+      .breadcrumbs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .breadcrumbs button {
+        background: #f6f1e6;
+        color: var(--bg-ink);
+        box-shadow: inset 0 0 0 1px rgba(15, 27, 30, 0.14);
+        padding: 6px 12px;
+        font-size: 0.85rem;
+      }
+
+      .view-meta {
+        font-size: 0.9rem;
+        color: rgba(15, 27, 30, 0.65);
+      }
+
+      .graph-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .graph-toolbar .search {
+        flex: 1 1 240px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .graph-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .graph-area {
+        position: relative;
+        min-height: 420px;
+        border-radius: var(--radius-sm);
+        background: var(--card-strong);
+        border: 1px solid rgba(15, 27, 30, 0.12);
+        overflow: hidden;
+      }
+
+      .side-panel {
+        display: grid;
+        gap: 14px;
+        min-width: 0;
+      }
+
+      .panel-card {
+        background: rgba(255, 253, 246, 0.96);
+        border-radius: var(--radius-sm);
+        border: 1px solid rgba(15, 27, 30, 0.12);
+        padding: 14px;
+        box-shadow: 0 14px 28px rgba(15, 27, 30, 0.12);
+        min-width: 0;
+      }
+
+      .panel-eyebrow {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: rgba(15, 27, 30, 0.55);
+      }
+
+      .panel-title {
+        font-family: var(--font-display);
+        font-size: 1.2rem;
+        margin-top: 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+      }
+
+      .panel-path {
+        margin-top: 4px;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: rgba(15, 27, 30, 0.58);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+      }
+
+      .panel-metrics {
+        display: grid;
+        gap: 6px;
+        margin-top: 10px;
+        font-size: 0.86rem;
+        color: rgba(15, 27, 30, 0.7);
+      }
+
+      .panel-metric {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .panel-list-header {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: rgba(15, 27, 30, 0.55);
+        margin-bottom: 8px;
+      }
+
+      .panel-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .panel-row {
+        display: grid;
+        grid-template-columns: 12px 1fr auto;
+        gap: 10px;
+        align-items: center;
+        font-size: 0.9rem;
+        min-width: 0;
+      }
+
+      .panel-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        box-shadow: 0 0 0 1px rgba(15, 27, 30, 0.25);
+      }
+
+      .panel-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+      }
+
+      .panel-size {
+        font-family: var(--font-mono);
+        font-size: 0.82rem;
+        color: rgba(15, 27, 30, 0.65);
+      }
+
+      .panel-empty {
+        font-size: 0.85rem;
+        color: rgba(15, 27, 30, 0.52);
+      }
+
+      svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .node rect,
+      .node path {
+        stroke: rgba(15, 27, 30, 0.12);
+        stroke-width: 1;
+        transition: opacity 0.18s ease, stroke 0.18s ease, fill 0.18s ease;
+      }
+
+      .node text {
+        font-size: 11px;
+        fill: rgba(12, 22, 24, 0.78);
+        pointer-events: none;
+        font-family: var(--font-mono);
+      }
+
+      .node.is-dim rect,
+      .node.is-dim path {
+        opacity: 0.25;
+      }
+
+      .node.is-match rect,
+      .node.is-match path {
+        stroke: rgba(15, 27, 30, 0.6);
+        stroke-width: 1.4;
+        opacity: 0.95;
+      }
+
+      .node.is-active rect,
+      .node.is-active path {
+        stroke: var(--accent-2);
+        stroke-width: 1.6;
+      }
+
+      .empty {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        padding: 20px;
+        color: rgba(15, 27, 30, 0.6);
+      }
+
+      .empty-title {
+        font-family: var(--font-display);
+        font-size: 1.4rem;
+        margin-bottom: 6px;
+      }
+
+      .tooltip {
+        position: fixed;
+        z-index: 20;
+        background: rgba(15, 27, 30, 0.95);
+        color: #fffaf0;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        max-width: 320px;
+        pointer-events: none;
+        box-shadow: 0 12px 28px rgba(15, 27, 30, 0.35);
+      }
+
+      .tooltip-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .tooltip-row {
+        font-family: var(--font-mono);
+        opacity: 0.85;
+        line-height: 1.35;
+      }
+
+      @keyframes rise {
+        0% {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 700px) {
+        .app {
+          padding: 28px 16px 48px;
+        }
+
+        .graph-layout {
+          grid-template-columns: 1fr;
+        }
+
+        .graph-area {
+          min-height: 360px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="backdrop"></div>
+    <main class="app">
+      <header class="hero">
+        <div class="brand">FireDisk</div>
+        <div class="subtitle">
+          State of the art disk space analyzer with interactive SVG flame graphs.
+        </div>
+      </header>
+
+      <section class="controls card">
+        <div class="row">
+          <button id="pickFolder" type="button">Choose Folder</button>
+          <button id="stopScan" class="ghost" type="button" disabled>Stop</button>
+          <div id="pickerHint" class="hint"></div>
+        </div>
+        <div class="options">
+          <div class="field range-field">
+            <label for="depthLimit">Max depth</label>
+            <input id="depthLimit" type="range" min="2" max="16" value="6" />
+            <div class="value-pill" id="depthValue">6 levels</div>
+          </div>
+          <div class="field range-field">
+            <label for="minSlice">Min slice width</label>
+            <input id="minSlice" type="range" min="0.5" max="6" step="0.5" value="6" />
+            <div class="value-pill" id="minSliceValue">6.0 px</div>
+          </div>
+          <div class="field toggle-field">
+            <label for="groupTiny">Group tiny items</label>
+            <input id="groupTiny" type="checkbox" checked />
+          </div>
+          <div class="field toggle-field">
+            <label for="hideHidden">Hide dotfiles</label>
+            <input id="hideHidden" type="checkbox" />
+          </div>
+          <div class="field">
+            <label for="sortBy">Sort</label>
+            <select id="sortBy">
+              <option value="size">Largest first</option>
+              <option value="name">Alphabetical</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="layoutMode">Layout</label>
+            <select id="layoutMode">
+              <option value="flame">Flame</option>
+              <option value="radial" selected>Radial</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="stats card">
+        <div class="stats-grid">
+          <div class="stat">
+            <div class="stat-label">Total size</div>
+            <div class="stat-value" id="totalSize">-</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Files</div>
+            <div class="stat-value" id="fileCount">-</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Folders</div>
+            <div class="stat-value" id="folderCount">-</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Scan time</div>
+            <div class="stat-value" id="scanTime">-</div>
+          </div>
+        </div>
+        <div class="status-row">
+          <div id="status">Ready to scan.</div>
+          <div id="errorCount"></div>
+        </div>
+      </section>
+
+      <section class="graph card">
+        <div class="graph-header">
+          <div class="breadcrumbs" id="breadcrumbs"></div>
+          <div class="view-meta" id="viewMeta"></div>
+        </div>
+        <div class="graph-toolbar">
+          <div class="search">
+            <label for="searchInput">Search</label>
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Type to highlight folders or files"
+            />
+          </div>
+          <button id="zoomOut" class="ghost" type="button" disabled>Zoom Out</button>
+        </div>
+        <div class="graph-layout">
+          <div class="graph-area">
+            <svg id="flamegraph" role="img" aria-label="Disk usage flame graph"></svg>
+            <div id="emptyState" class="empty">
+              <div>
+                <div class="empty-title">Pick a folder to begin</div>
+                <div>
+                  Uses the File System Access API when available, or folder upload as a fallback.
+                </div>
+              </div>
+            </div>
+          </div>
+          <aside class="side-panel" aria-live="polite">
+            <div class="panel-card">
+              <div class="panel-eyebrow">Preview</div>
+              <div class="panel-title" id="panelTitle">No selection</div>
+              <div class="panel-path" id="panelPath">Hover a segment to see details.</div>
+              <div class="panel-metrics">
+                <div class="panel-metric">
+                  <span>Size</span>
+                  <span id="panelSize">-</span>
+                </div>
+                <div class="panel-metric">
+                  <span>Share</span>
+                  <span id="panelShare">-</span>
+                </div>
+                <div class="panel-metric">
+                  <span>Items</span>
+                  <span id="panelItems">-</span>
+                </div>
+              </div>
+            </div>
+            <div class="panel-card">
+              <div class="panel-list-header" id="panelListHeader">Largest items</div>
+              <div class="panel-list" id="panelList"></div>
+              <div class="panel-empty" id="panelEmpty">No items to display.</div>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <div id="tooltip" class="tooltip" hidden></div>
+    <input id="dirInput" type="file" webkitdirectory directory multiple hidden />
+
+    <script>
+      (() => {
+        const el = {
+          pickFolder: document.getElementById("pickFolder"),
+          stopScan: document.getElementById("stopScan"),
+          dirInput: document.getElementById("dirInput"),
+          pickerHint: document.getElementById("pickerHint"),
+          depthLimit: document.getElementById("depthLimit"),
+          depthValue: document.getElementById("depthValue"),
+          minSlice: document.getElementById("minSlice"),
+          minSliceValue: document.getElementById("minSliceValue"),
+          groupTiny: document.getElementById("groupTiny"),
+          hideHidden: document.getElementById("hideHidden"),
+          sortBy: document.getElementById("sortBy"),
+          layoutMode: document.getElementById("layoutMode"),
+          totalSize: document.getElementById("totalSize"),
+          fileCount: document.getElementById("fileCount"),
+          folderCount: document.getElementById("folderCount"),
+          scanTime: document.getElementById("scanTime"),
+          status: document.getElementById("status"),
+          errorCount: document.getElementById("errorCount"),
+          breadcrumbs: document.getElementById("breadcrumbs"),
+          viewMeta: document.getElementById("viewMeta"),
+          searchInput: document.getElementById("searchInput"),
+          zoomOut: document.getElementById("zoomOut"),
+          flamegraph: document.getElementById("flamegraph"),
+          emptyState: document.getElementById("emptyState"),
+          tooltip: document.getElementById("tooltip"),
+          panelTitle: document.getElementById("panelTitle"),
+          panelPath: document.getElementById("panelPath"),
+          panelSize: document.getElementById("panelSize"),
+          panelShare: document.getElementById("panelShare"),
+          panelItems: document.getElementById("panelItems"),
+          panelList: document.getElementById("panelList"),
+          panelListHeader: document.getElementById("panelListHeader"),
+          panelEmpty: document.getElementById("panelEmpty")
+        };
+
+        const state = {
+          root: null,
+          viewRoot: null,
+          layoutNodes: [],
+          scanning: false,
+          abort: false,
+          settings: {
+            maxDepth: 6,
+            minPx: 6,
+            groupTiny: true,
+            hideHidden: false,
+            sortBy: "size",
+            layoutMode: "radial"
+          },
+          stats: {
+            files: 0,
+            dirs: 0,
+            bytes: 0,
+            errors: 0,
+            scanTimeMs: 0,
+            scannedEntries: 0
+          },
+          searchTerm: "",
+          hoverIndex: null,
+          lastProgressUpdate: 0,
+          groupColors: new Map()
+        };
+
+        const numberFormat = new Intl.NumberFormat();
+        const hardwareConcurrency = navigator.hardwareConcurrency || 4;
+        const scanConcurrency = {
+          files: Math.min(32, Math.max(8, hardwareConcurrency * 2)),
+          dirs: Math.min(8, Math.max(2, Math.ceil(hardwareConcurrency / 2)))
+        };
+        const supportsDirectoryPicker = "showDirectoryPicker" in window;
+        el.pickerHint.textContent = supportsDirectoryPicker
+          ? "Native directory picker available."
+          : "Fallback to folder upload in this browser.";
+
+        el.pickFolder.addEventListener("click", async () => {
+          if (state.scanning) {
+            return;
+          }
+          if (supportsDirectoryPicker) {
+            await pickDirectory();
+          } else {
+            el.dirInput.click();
+          }
+        });
+
+        el.stopScan.addEventListener("click", () => {
+          if (!state.scanning) {
+            return;
+          }
+          state.abort = true;
+          el.status.textContent = "Stopping scan...";
+        });
+
+        el.dirInput.addEventListener("change", async (event) => {
+          const files = Array.from(event.target.files || []);
+          if (!files.length) {
+            return;
+          }
+          await scanFromFileList(files);
+          el.dirInput.value = "";
+        });
+
+        el.depthLimit.addEventListener("input", () => {
+          state.settings.maxDepth = Number(el.depthLimit.value);
+          el.depthValue.textContent = `${state.settings.maxDepth} levels`;
+          renderGraph();
+        });
+
+        el.minSlice.addEventListener("input", () => {
+          state.settings.minPx = Number(el.minSlice.value);
+          el.minSliceValue.textContent = `${state.settings.minPx.toFixed(1)} px`;
+          renderGraph();
+        });
+
+        el.groupTiny.addEventListener("change", () => {
+          state.settings.groupTiny = el.groupTiny.checked;
+          renderGraph();
+        });
+
+        el.hideHidden.addEventListener("change", () => {
+          state.settings.hideHidden = el.hideHidden.checked;
+          if (state.root && state.root.source === "directory") {
+            rescanCurrentDirectory();
+          }
+        });
+
+        el.sortBy.addEventListener("change", () => {
+          state.settings.sortBy = el.sortBy.value;
+          renderGraph();
+        });
+
+        el.layoutMode.addEventListener("change", () => {
+          state.settings.layoutMode = el.layoutMode.value;
+          renderGraph();
+        });
+
+        el.searchInput.addEventListener("input", () => {
+          state.searchTerm = el.searchInput.value.trim().toLowerCase();
+          renderGraph();
+        });
+
+        el.zoomOut.addEventListener("click", () => {
+          if (!state.viewRoot || !state.viewRoot.parent) {
+            return;
+          }
+          state.viewRoot = state.viewRoot.parent;
+          renderGraph();
+        });
+
+        const resizeObserver = new ResizeObserver(() => {
+          renderGraph();
+        });
+        resizeObserver.observe(el.flamegraph);
+
+        async function pickDirectory() {
+          try {
+            const handle = await window.showDirectoryPicker({ mode: "read" });
+            await scanDirectoryHandle(handle);
+          } catch (error) {
+            if (error && error.name === "AbortError") {
+              return;
+            }
+            el.status.textContent = "Unable to access folder.";
+          }
+        }
+
+        async function scanDirectoryHandle(handle) {
+          const start = performance.now();
+          resetStats();
+          setScanning(true);
+          el.status.textContent = "Scanning directory...";
+          state.abort = false;
+          state.lastProgressUpdate = performance.now();
+
+          try {
+            const root = await scanDirectory(handle, handle.name || "Selected Folder", null);
+            if (state.abort) {
+              throw new Error("Scan aborted");
+            }
+            root.sourceHandle = handle;
+            root.source = "directory";
+            finalizeScan(root, start);
+          } catch (error) {
+            if (state.abort) {
+              el.status.textContent = "Scan stopped.";
+            } else {
+              el.status.textContent = "Scan failed. Try another folder.";
+            }
+          } finally {
+            setScanning(false);
+          }
+        }
+
+        function rescanCurrentDirectory() {
+          if (state.root && state.root.sourceHandle) {
+            scanDirectoryHandle(state.root.sourceHandle);
+            return;
+          }
+          pickDirectory();
+        }
+
+        async function scanFromFileList(files) {
+          const start = performance.now();
+          resetStats();
+          setScanning(true);
+          el.status.textContent = "Building tree from selected files...";
+          state.abort = false;
+          state.lastProgressUpdate = performance.now();
+
+          try {
+            const root = buildTreeFromFileList(files);
+            root.source = "filelist";
+            finalizeScan(root, start);
+          } catch (error) {
+            el.status.textContent = "Unable to build file list.";
+          } finally {
+            setScanning(false);
+          }
+        }
+
+        function finalizeScan(root, start) {
+          const end = performance.now();
+          state.root = root;
+          state.viewRoot = root;
+          state.stats.scanTimeMs = end - start;
+          updateStats();
+          renderGraph();
+          el.status.textContent = "Scan complete.";
+        }
+
+        function setScanning(active) {
+          state.scanning = active;
+          el.pickFolder.disabled = active;
+          el.stopScan.disabled = !active;
+          el.depthLimit.disabled = active;
+          el.minSlice.disabled = active;
+          el.groupTiny.disabled = active;
+          el.hideHidden.disabled = active;
+          el.sortBy.disabled = active;
+          el.layoutMode.disabled = active;
+          el.searchInput.disabled = active;
+          if (active) {
+            el.zoomOut.disabled = true;
+          }
+        }
+
+        function resetStats() {
+          state.stats = {
+            files: 0,
+            dirs: 0,
+            bytes: 0,
+            errors: 0,
+            scanTimeMs: 0,
+            scannedEntries: 0
+          };
+        }
+
+        async function runWithConcurrency(items, limit, task) {
+          if (!items.length) {
+            return;
+          }
+          const safeLimit = Math.max(1, Math.min(limit, items.length));
+          let index = 0;
+          const workers = Array.from({ length: safeLimit }, async () => {
+            while (index < items.length && !state.abort) {
+              const current = index;
+              index += 1;
+              await task(items[current]);
+            }
+          });
+          await Promise.all(workers);
+        }
+
+        async function scanDirectory(handle, name, parent) {
+          const node = createNode(name, "dir", parent);
+          const fileEntries = [];
+          const dirEntries = [];
+
+          for await (const [entryName, entryHandle] of handle.entries()) {
+            if (state.abort) {
+              throw new Error("Scan aborted");
+            }
+            if (state.settings.hideHidden && entryName.startsWith(".")) {
+              continue;
+            }
+            if (entryHandle.kind === "file") {
+              fileEntries.push({ name: entryName, handle: entryHandle });
+            } else if (entryHandle.kind === "directory") {
+              dirEntries.push({ name: entryName, handle: entryHandle });
+            }
+            bumpProgress();
+          }
+
+          await Promise.all([
+            runWithConcurrency(fileEntries, scanConcurrency.files, async (entry) => {
+              if (state.abort) {
+                return;
+              }
+              await addFileNode(entry.name, entry.handle, node);
+            }),
+            runWithConcurrency(dirEntries, scanConcurrency.dirs, async (entry) => {
+              if (state.abort) {
+                return;
+              }
+              state.stats.dirs += 1;
+              const child = await scanDirectory(entry.handle, entry.name, node);
+              node.children.push(child);
+              node.size += child.size;
+              node.fileCount += child.fileCount;
+              node.dirCount += 1 + child.dirCount;
+            })
+          ]);
+          return node;
+        }
+
+        async function addFileNode(name, entryHandle, parentNode) {
+          try {
+            const file = await entryHandle.getFile();
+            const fileNode = createNode(name, "file", parentNode);
+            fileNode.size = file.size;
+            fileNode.fileCount = 1;
+            parentNode.children.push(fileNode);
+            parentNode.size += fileNode.size;
+            parentNode.fileCount += 1;
+            state.stats.files += 1;
+            state.stats.bytes += fileNode.size;
+          } catch (error) {
+            state.stats.errors += 1;
+          }
+        }
+
+        function bumpProgress() {
+          state.stats.scannedEntries += 1;
+          const now = performance.now();
+          if (now - state.lastProgressUpdate > 120) {
+            state.lastProgressUpdate = now;
+            el.status.textContent = `Scanning... ${numberFormat.format(
+              state.stats.scannedEntries
+            )} items`;
+          }
+        }
+
+        function buildTreeFromFileList(files) {
+          const samplePath = files[0].webkitRelativePath || files[0].name;
+          const sampleParts = samplePath.split("/").filter(Boolean);
+          const rootName = sampleParts.length > 1 ? sampleParts[0] : "Selected Folder";
+          const root = createNode(rootName, "dir", null);
+          root.childrenMap = new Map();
+
+          for (const file of files) {
+            const relPath = file.webkitRelativePath || file.name;
+            const parts = relPath.split("/").filter(Boolean);
+            if (parts[0] === rootName) {
+              parts.shift();
+            }
+            const fileName = parts.pop();
+            const parent = ensureDirectory(root, parts);
+            const fileNode = createNode(fileName, "file", parent);
+            fileNode.size = file.size;
+            fileNode.fileCount = 1;
+            parent.children.push(fileNode);
+            state.stats.files += 1;
+            state.stats.bytes += file.size;
+          }
+
+          aggregateTree(root);
+          state.stats.dirs = root.dirCount;
+          pruneMaps(root);
+          return root;
+        }
+
+        function ensureDirectory(root, parts) {
+          let current = root;
+          for (const part of parts) {
+            let next = current.childrenMap.get(part);
+            if (!next) {
+              next = createNode(part, "dir", current);
+              next.childrenMap = new Map();
+              current.children.push(next);
+              current.childrenMap.set(part, next);
+            }
+            current = next;
+          }
+          return current;
+        }
+
+        function aggregateTree(node) {
+          if (node.type === "file") {
+            return;
+          }
+          let size = 0;
+          let fileCount = 0;
+          let dirCount = 0;
+          for (const child of node.children) {
+            if (child.type === "dir") {
+              aggregateTree(child);
+              size += child.size;
+              fileCount += child.fileCount;
+              dirCount += 1 + child.dirCount;
+            } else {
+              size += child.size;
+              fileCount += 1;
+            }
+          }
+          node.size = size;
+          node.fileCount = fileCount;
+          node.dirCount = dirCount;
+        }
+
+        function pruneMaps(node) {
+          if (node.childrenMap) {
+            delete node.childrenMap;
+          }
+          if (!node.children) {
+            return;
+          }
+          for (const child of node.children) {
+            pruneMaps(child);
+          }
+        }
+
+        function createNode(name, type, parent) {
+          const path = parent ? `${parent.path}/${name}` : name;
+          return {
+            name,
+            type,
+            path,
+            parent,
+            children: [],
+            size: 0,
+            fileCount: 0,
+            dirCount: 0
+          };
+        }
+
+        function updateStats() {
+          const totalSize = state.root ? state.root.size : 0;
+          el.totalSize.textContent = formatBytes(totalSize);
+          el.fileCount.textContent = numberFormat.format(state.stats.files || 0);
+          el.folderCount.textContent = numberFormat.format(state.stats.dirs || 0);
+          el.scanTime.textContent = state.stats.scanTimeMs
+            ? `${Math.round(state.stats.scanTimeMs)} ms`
+            : "-";
+          el.errorCount.textContent = state.stats.errors
+            ? `Errors: ${numberFormat.format(state.stats.errors)}`
+            : "";
+        }
+
+        function renderGraph() {
+          if (!state.root) {
+            el.emptyState.style.display = "grid";
+            el.flamegraph.replaceChildren();
+            el.breadcrumbs.replaceChildren();
+            el.viewMeta.textContent = "";
+            el.zoomOut.disabled = true;
+            updateSidePanel(null);
+            return;
+          }
+
+          el.emptyState.style.display = "none";
+          prepareGroupColors();
+          if (state.settings.layoutMode === "radial") {
+            renderRadialGraph();
+          } else {
+            renderFlameGraph();
+          }
+          applySearchHighlight();
+          updateBreadcrumbs();
+          updateViewMeta();
+          updateSidePanel(state.viewRoot);
+          el.zoomOut.disabled =
+            !state.viewRoot || !state.viewRoot.parent || state.scanning;
+        }
+
+        function prepareGroupColors() {
+          state.groupColors = new Map();
+          if (!state.viewRoot || !state.viewRoot.children) {
+            return;
+          }
+          const groups = state.viewRoot.children.slice();
+          if (state.settings.sortBy === "name") {
+            groups.sort((a, b) => a.name.localeCompare(b.name));
+          } else {
+            groups.sort((a, b) => b.size - a.size);
+          }
+          groups.forEach((child, index) => {
+            state.groupColors.set(child.name, index % groupedPalette.length);
+          });
+        }
+
+        function renderFlameGraph() {
+          const svgWidth = el.flamegraph.clientWidth || 800;
+          const rowHeight = 26;
+          const rowGap = 6;
+          const barInset = 1.2;
+          const topPadding = 12;
+          const bottomPadding = 12;
+          const sidePadding = 6;
+          const maxDepth = Math.min(
+            state.settings.maxDepth,
+            getMaxDepth(state.viewRoot, state.settings.maxDepth)
+          );
+          const svgHeight = Math.max(
+            320,
+            topPadding + (maxDepth + 1) * rowHeight + bottomPadding
+          );
+
+          el.flamegraph.setAttribute("viewBox", `0 0 ${svgWidth} ${svgHeight}`);
+          el.flamegraph.setAttribute("preserveAspectRatio", "none");
+          el.flamegraph.style.height = `${svgHeight}px`;
+
+          const nodes = [];
+          const layoutWidth = Math.max(1, svgWidth - sidePadding * 2);
+          layoutFlame(
+            state.viewRoot,
+            0,
+            sidePadding,
+            layoutWidth,
+            nodes,
+            rowHeight,
+            maxDepth
+          );
+          state.layoutNodes = nodes;
+
+          const fragment = document.createDocumentFragment();
+          nodes.forEach((entry, index) => {
+            const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            group.classList.add("node");
+            group.dataset.index = String(index);
+
+            const y = topPadding + entry.depth * rowHeight;
+            const x = entry.x + barInset;
+            const width = Math.max(0.6, entry.width - barInset * 2);
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", x.toFixed(2));
+            rect.setAttribute("y", y.toFixed(2));
+            rect.setAttribute("width", width.toFixed(2));
+            rect.setAttribute("height", (rowHeight - rowGap).toFixed(2));
+            rect.setAttribute("rx", "4");
+            rect.setAttribute("fill", colorForNode(entry.node, entry.depth));
+
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", (x + 6).toFixed(2));
+            text.setAttribute("y", (y + (rowHeight - rowGap) / 2).toFixed(2));
+            text.setAttribute("dominant-baseline", "middle");
+            text.textContent = buildLabel(entry.node, width);
+
+            if (width < 64) {
+              text.textContent = "";
+            }
+
+            group.appendChild(rect);
+            if (text.textContent) {
+              group.appendChild(text);
+            }
+            fragment.appendChild(group);
+          });
+
+          el.flamegraph.replaceChildren(fragment);
+        }
+
+        function renderRadialGraph() {
+          const svgWidth = el.flamegraph.clientWidth || 800;
+          const size = Math.max(320, Math.min(svgWidth, 760));
+          const padding = 18;
+          const depthLimit = Math.min(
+            state.settings.maxDepth,
+            getMaxDepth(state.viewRoot, state.settings.maxDepth)
+          );
+          const radius = Math.max(120, size / 2 - padding);
+          const ringWidth = radius / (depthLimit + 1);
+          const ringGap = Math.min(6, ringWidth * 0.3);
+          const minAngle = state.settings.groupTiny
+            ? state.settings.minPx / Math.max(1, radius)
+            : 0;
+
+          el.flamegraph.setAttribute("viewBox", `0 0 ${size} ${size}`);
+          el.flamegraph.setAttribute("preserveAspectRatio", "xMidYMid meet");
+          el.flamegraph.style.height = `${size}px`;
+
+          const nodes = [];
+          layoutRadial(
+            state.viewRoot,
+            0,
+            0,
+            Math.PI * 2,
+            nodes,
+            depthLimit,
+            minAngle,
+            ringWidth,
+            ringGap
+          );
+          state.layoutNodes = nodes;
+
+          const fragment = document.createDocumentFragment();
+          const cx = size / 2;
+          const cy = size / 2;
+          const angleOffset = -Math.PI / 2;
+          const padAngle = 0.003;
+
+          nodes.forEach((entry, index) => {
+            const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            group.classList.add("node");
+            group.dataset.index = String(index);
+
+            const start = entry.startAngle + angleOffset + padAngle / 2;
+            const end = entry.endAngle + angleOffset - padAngle / 2;
+            if (end <= start) {
+              return;
+            }
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute(
+              "d",
+              describeArc(cx, cy, entry.innerRadius, entry.outerRadius, start, end)
+            );
+            path.setAttribute("fill", colorForNode(entry.node, entry.depth));
+
+            const midRadius = (entry.innerRadius + entry.outerRadius) / 2;
+            const arcPadding = Math.min(0.12, (end - start) * 0.18);
+            const labelStart = start + arcPadding;
+            const labelEnd = end - arcPadding;
+            const arcLength = Math.max(0, labelEnd - labelStart) * midRadius;
+
+            group.appendChild(path);
+
+            if (arcLength > 72) {
+              const midAngle = (labelStart + labelEnd) / 2;
+              const angleDeg = (midAngle * 180) / Math.PI;
+              const flip = angleDeg > 90 && angleDeg < 270;
+              const pathStart = flip ? labelEnd : labelStart;
+              const pathEnd = flip ? labelStart : labelEnd;
+              const arcId = `arc-label-${index}`;
+
+              const labelPath = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "path"
+              );
+              labelPath.setAttribute("id", arcId);
+              labelPath.setAttribute(
+                "d",
+                describeArcPath(cx, cy, midRadius, pathStart, pathEnd)
+              );
+              labelPath.setAttribute("fill", "none");
+              labelPath.setAttribute("stroke", "none");
+
+              const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+              text.setAttribute("dominant-baseline", "middle");
+
+              const textPath = document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "textPath"
+              );
+              textPath.setAttribute("href", `#${arcId}`);
+              textPath.setAttributeNS(
+                "http://www.w3.org/1999/xlink",
+                "xlink:href",
+                `#${arcId}`
+              );
+              textPath.setAttribute("startOffset", "2%");
+              textPath.textContent = buildLabel(entry.node, arcLength);
+
+              text.appendChild(textPath);
+              group.appendChild(labelPath);
+              group.appendChild(text);
+            }
+            fragment.appendChild(group);
+          });
+
+          el.flamegraph.replaceChildren(fragment);
+        }
+
+        function layoutFlame(node, depth, x, width, nodes, rowHeight, maxDepth) {
+          nodes.push({ node, depth, x, width });
+          if (!node.children || !node.children.length || depth >= maxDepth) {
+            return;
+          }
+          let children = node.children.slice();
+          if (state.settings.sortBy === "name") {
+            children.sort((a, b) => a.name.localeCompare(b.name));
+          } else {
+            children.sort((a, b) => b.size - a.size);
+          }
+          const total = node.size || 1;
+          let cursor = x;
+          let otherSize = 0;
+          let otherCount = 0;
+          for (const child of children) {
+            const segmentWidth = width * (child.size / total);
+            if (state.settings.groupTiny && segmentWidth < state.settings.minPx) {
+              otherSize += child.size;
+              otherCount += 1;
+              continue;
+            }
+            layoutFlame(child, depth + 1, cursor, segmentWidth, nodes, rowHeight, maxDepth);
+            cursor += segmentWidth;
+          }
+          if (state.settings.groupTiny && otherSize > 0) {
+            const otherNode = {
+              name: `Other (${otherCount})`,
+              type: "other",
+              path: `${node.path}/Other`,
+              parent: node,
+              children: [],
+              size: otherSize,
+              fileCount: 0,
+              dirCount: 0,
+              aggregateCount: otherCount
+            };
+            const otherWidth = width * (otherSize / total);
+            nodes.push({ node: otherNode, depth: depth + 1, x: cursor, width: otherWidth });
+          }
+        }
+
+        function layoutRadial(
+          node,
+          depth,
+          startAngle,
+          endAngle,
+          nodes,
+          maxDepth,
+          minAngle,
+          ringWidth,
+          ringGap
+        ) {
+          const innerRadius = depth === 0 ? 0 : depth * ringWidth + ringGap / 2;
+          const outerRadius =
+            depth === 0 ? ringWidth - ringGap / 2 : innerRadius + ringWidth - ringGap;
+          nodes.push({
+            node,
+            depth,
+            startAngle,
+            endAngle,
+            innerRadius,
+            outerRadius
+          });
+
+          if (!node.children || !node.children.length || depth >= maxDepth) {
+            return;
+          }
+
+          let children = node.children.slice();
+          if (state.settings.sortBy === "name") {
+            children.sort((a, b) => a.name.localeCompare(b.name));
+          } else {
+            children.sort((a, b) => b.size - a.size);
+          }
+          const total = node.size || 1;
+          let cursor = startAngle;
+          let otherSize = 0;
+          let otherCount = 0;
+          const angleSpan = endAngle - startAngle;
+
+          for (const child of children) {
+            const segmentAngle = angleSpan * (child.size / total);
+            if (state.settings.groupTiny && segmentAngle < minAngle) {
+              otherSize += child.size;
+              otherCount += 1;
+              continue;
+            }
+            layoutRadial(
+              child,
+              depth + 1,
+              cursor,
+              cursor + segmentAngle,
+              nodes,
+              maxDepth,
+              minAngle,
+              ringWidth,
+              ringGap
+            );
+            cursor += segmentAngle;
+          }
+
+          if (state.settings.groupTiny && otherSize > 0) {
+            const otherNode = {
+              name: `Other (${otherCount})`,
+              type: "other",
+              path: `${node.path}/Other`,
+              parent: node,
+              children: [],
+              size: otherSize,
+              fileCount: 0,
+              dirCount: 0,
+              aggregateCount: otherCount
+            };
+            const otherAngle = angleSpan * (otherSize / total);
+            nodes.push({
+              node: otherNode,
+              depth: depth + 1,
+              startAngle: cursor,
+              endAngle: cursor + otherAngle,
+              innerRadius: (depth + 1) * ringWidth + ringGap / 2,
+              outerRadius: (depth + 2) * ringWidth - ringGap / 2
+            });
+          }
+        }
+
+        function getMaxDepth(node, limit) {
+          if (!node.children || !node.children.length || limit <= 0) {
+            return 0;
+          }
+          let maxDepth = 0;
+          for (const child of node.children) {
+            maxDepth = Math.max(maxDepth, 1 + getMaxDepth(child, limit - 1));
+          }
+          return maxDepth;
+        }
+
+        function polarToCartesian(cx, cy, radius, angle) {
+          return {
+            x: cx + radius * Math.cos(angle),
+            y: cy + radius * Math.sin(angle)
+          };
+        }
+
+        function describeArcPath(cx, cy, radius, startAngle, endAngle) {
+          const start = polarToCartesian(cx, cy, radius, startAngle);
+          const end = polarToCartesian(cx, cy, radius, endAngle);
+          const delta = Math.abs(endAngle - startAngle);
+          const largeArc = delta > Math.PI ? 1 : 0;
+          const sweep = endAngle > startAngle ? 1 : 0;
+          return [
+            `M ${start.x.toFixed(2)} ${start.y.toFixed(2)}`,
+            `A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 ${largeArc} ${sweep}`,
+            `${end.x.toFixed(2)} ${end.y.toFixed(2)}`
+          ].join(" ");
+        }
+
+        function describeArc(cx, cy, innerRadius, outerRadius, startAngle, endAngle) {
+          const startOuter = polarToCartesian(cx, cy, outerRadius, startAngle);
+          const endOuter = polarToCartesian(cx, cy, outerRadius, endAngle);
+          const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
+
+          if (innerRadius <= 0.5) {
+            return [
+              `M ${cx.toFixed(2)} ${cy.toFixed(2)}`,
+              `L ${endOuter.x.toFixed(2)} ${endOuter.y.toFixed(2)}`,
+              `A ${outerRadius.toFixed(2)} ${outerRadius.toFixed(2)} 0 ${largeArc} 0`,
+              `${startOuter.x.toFixed(2)} ${startOuter.y.toFixed(2)}`,
+              "Z"
+            ].join(" ");
+          }
+
+          const startInner = polarToCartesian(cx, cy, innerRadius, endAngle);
+          const endInner = polarToCartesian(cx, cy, innerRadius, startAngle);
+          return [
+            `M ${endOuter.x.toFixed(2)} ${endOuter.y.toFixed(2)}`,
+            `A ${outerRadius.toFixed(2)} ${outerRadius.toFixed(2)} 0 ${largeArc} 0`,
+            `${startOuter.x.toFixed(2)} ${startOuter.y.toFixed(2)}`,
+            `L ${endInner.x.toFixed(2)} ${endInner.y.toFixed(2)}`,
+            `A ${innerRadius.toFixed(2)} ${innerRadius.toFixed(2)} 0 ${largeArc} 1`,
+            `${startInner.x.toFixed(2)} ${startInner.y.toFixed(2)}`,
+            "Z"
+          ].join(" ");
+        }
+
+        function applySearchHighlight() {
+          const term = state.searchTerm;
+          const groups = el.flamegraph.querySelectorAll("g.node");
+          groups.forEach((group) => {
+            group.classList.remove("is-match", "is-dim");
+            const index = Number(group.dataset.index);
+            const entry = state.layoutNodes[index];
+            if (!term) {
+              return;
+            }
+            if (entry.node.name.toLowerCase().includes(term)) {
+              group.classList.add("is-match");
+            } else {
+              group.classList.add("is-dim");
+            }
+          });
+        }
+
+        function updateBreadcrumbs() {
+          el.breadcrumbs.replaceChildren();
+          if (!state.viewRoot) {
+            return;
+          }
+          const chain = [];
+          let current = state.viewRoot;
+          while (current) {
+            chain.unshift(current);
+            current = current.parent;
+          }
+          chain.forEach((node) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = node.name;
+            button.addEventListener("click", () => {
+              state.viewRoot = node;
+              renderGraph();
+            });
+            el.breadcrumbs.appendChild(button);
+          });
+        }
+
+        function updateViewMeta() {
+          if (!state.viewRoot) {
+            el.viewMeta.textContent = "";
+            return;
+          }
+          const totalSize = state.root ? state.root.size : 0;
+          const percent = totalSize ? (state.viewRoot.size / totalSize) * 100 : 0;
+          el.viewMeta.textContent = `${formatBytes(state.viewRoot.size)} (${percent.toFixed(
+            2
+          )}% of total) - ${numberFormat.format(state.viewRoot.fileCount)} files`;
+        }
+
+        function updateSidePanel(node) {
+          if (!node) {
+            el.panelTitle.textContent = "No selection";
+            el.panelPath.textContent = "Hover a segment to see details.";
+            el.panelSize.textContent = "-";
+            el.panelShare.textContent = "-";
+            el.panelItems.textContent = "-";
+            el.panelTitle.removeAttribute("title");
+            el.panelPath.removeAttribute("title");
+            el.panelList.replaceChildren();
+            el.panelListHeader.textContent = "Largest items";
+            el.panelEmpty.textContent = "No items to display.";
+            el.panelEmpty.style.display = "block";
+            return;
+          }
+
+          const basis = state.viewRoot || state.root || node;
+          const percent = basis && basis.size ? (node.size / basis.size) * 100 : 0;
+          el.panelTitle.textContent = clampText(node.name, 36);
+          el.panelPath.textContent = clampText(node.path || "", 72);
+          el.panelTitle.title = node.name;
+          el.panelPath.title = node.path || "";
+          el.panelSize.textContent = formatBytes(node.size);
+          el.panelShare.textContent = `${percent.toFixed(2)}%`;
+          el.panelItems.textContent = buildItemsLabel(node);
+
+          updatePanelList(node);
+        }
+
+        function buildItemsLabel(node) {
+          if (node.type === "dir") {
+            return `${numberFormat.format(node.dirCount)} folders, ${numberFormat.format(
+              node.fileCount
+            )} files`;
+          }
+          if (node.type === "other") {
+            return `Aggregated ${numberFormat.format(node.aggregateCount || 0)} items`;
+          }
+          return "File";
+        }
+
+        function updatePanelList(node) {
+          const children = node.children || [];
+          el.panelList.replaceChildren();
+          if (!children.length) {
+            el.panelListHeader.textContent = "Largest items";
+            el.panelEmpty.textContent =
+              node.type === "file"
+                ? "Files do not contain child items."
+                : node.type === "other"
+                ? "Grouped tiny items."
+                : "No child items.";
+            el.panelEmpty.style.display = "block";
+            return;
+          }
+
+          const sorted = children.slice().sort((a, b) => b.size - a.size);
+          const maxItems = 8;
+          const visible = sorted.slice(0, maxItems);
+          const fragment = document.createDocumentFragment();
+          visible.forEach((child) => {
+            const row = document.createElement("div");
+            row.className = "panel-row";
+
+            const dot = document.createElement("span");
+            dot.className = "panel-dot";
+            dot.style.background = colorForNode(child, getNodeDepth(child, state.viewRoot));
+
+            const name = document.createElement("div");
+            name.className = "panel-name";
+            name.textContent = clampText(child.name, 28);
+            name.title = child.name;
+
+            const size = document.createElement("div");
+            size.className = "panel-size";
+            size.textContent = formatBytes(child.size);
+
+            row.appendChild(dot);
+            row.appendChild(name);
+            row.appendChild(size);
+            fragment.appendChild(row);
+          });
+
+          el.panelList.appendChild(fragment);
+          el.panelListHeader.textContent =
+            children.length > maxItems
+              ? `Largest items (${maxItems} of ${children.length})`
+              : "Largest items";
+          el.panelEmpty.style.display = "none";
+        }
+
+        function clampText(value, maxLength) {
+          if (!value) {
+            return "";
+          }
+          if (value.length <= maxLength) {
+            return value;
+          }
+          const safeLength = Math.max(0, maxLength - 3);
+          return `${value.slice(0, safeLength)}...`;
+        }
+
+        function getNodeDepth(node, root) {
+          let depth = 0;
+          let current = node;
+          while (current && root && current !== root) {
+            depth += 1;
+            current = current.parent;
+            if (depth > 200) {
+              break;
+            }
+          }
+          return depth;
+        }
+
+        function buildLabel(node, width) {
+          if (width > 140) {
+            return `${node.name} (${formatBytes(node.size)})`;
+          }
+          return node.name;
+        }
+
+        const groupedPalette = [
+          [86, 210, 124],
+          [82, 142, 255],
+          [235, 120, 186],
+          [252, 171, 94],
+          [114, 214, 224],
+          [233, 118, 78],
+          [214, 198, 96],
+          [152, 108, 212],
+          [244, 92, 92],
+          [129, 220, 156]
+        ];
+
+        function colorForNode(node, depth) {
+          if (node.type === "other") {
+            return "#c7bba7";
+          }
+          if (node === state.viewRoot) {
+            return "#d9d2c4";
+          }
+          const groupKey = getGroupKey(node);
+          const groupIndex = state.groupColors.has(groupKey)
+            ? state.groupColors.get(groupKey)
+            : hashString(groupKey) % groupedPalette.length;
+          const base = groupedPalette[groupIndex];
+          const depthShade = Math.max(0.5, 1 - depth * 0.08);
+          const typeShade = node.type === "file" ? 0.9 : 1;
+          const shade = depthShade * typeShade;
+          const r = Math.min(255, Math.round(base[0] * shade + 14 * (1 - depthShade)));
+          const g = Math.min(255, Math.round(base[1] * shade + 12 * (1 - depthShade)));
+          const b = Math.min(255, Math.round(base[2] * shade + 10 * (1 - depthShade)));
+          return `rgb(${r} ${g} ${b})`;
+        }
+
+        function getGroupKey(node) {
+          if (!state.viewRoot || node === state.viewRoot) {
+            return node.name;
+          }
+          let current = node;
+          while (current.parent && current.parent !== state.viewRoot) {
+            current = current.parent;
+          }
+          return current.parent === state.viewRoot ? current.name : node.name;
+        }
+
+        function hashString(value) {
+          let hash = 0;
+          for (let i = 0; i < value.length; i += 1) {
+            hash = (hash << 5) - hash + value.charCodeAt(i);
+            hash |= 0;
+          }
+          return Math.abs(hash);
+        }
+
+        function formatBytes(bytes) {
+          if (!Number.isFinite(bytes) || bytes <= 0) {
+            return "0 B";
+          }
+          const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+          let value = bytes;
+          let unitIndex = 0;
+          while (value >= 1024 && unitIndex < units.length - 1) {
+            value /= 1024;
+            unitIndex += 1;
+          }
+          const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+          return `${value.toFixed(precision)} ${units[unitIndex]}`;
+        }
+
+        function escapeHtml(value) {
+          return value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+        }
+
+        el.flamegraph.addEventListener("mousemove", (event) => {
+          const target = event.target.closest("g.node");
+          if (!target) {
+            clearHover();
+            return;
+          }
+          const index = Number(target.dataset.index);
+          const entry = state.layoutNodes[index];
+          if (state.hoverIndex !== index) {
+            clearHover({ keepPanel: true });
+            state.hoverIndex = index;
+            target.classList.add("is-active");
+            updateSidePanel(entry.node);
+          }
+          showTooltip(event, entry);
+        });
+
+        el.flamegraph.addEventListener("mouseleave", () => {
+          clearHover();
+        });
+
+        el.flamegraph.addEventListener("click", (event) => {
+          const target = event.target.closest("g.node");
+          if (!target) {
+            return;
+          }
+          const index = Number(target.dataset.index);
+          const entry = state.layoutNodes[index];
+          if (entry.node.type === "dir" && entry.node.children.length) {
+            state.viewRoot = entry.node;
+            renderGraph();
+          }
+        });
+
+        function clearHover(options = {}) {
+          if (state.hoverIndex === null) {
+            el.tooltip.hidden = true;
+            if (!options.keepPanel && state.root) {
+              updateSidePanel(state.viewRoot);
+            }
+            return;
+          }
+          const previous = el.flamegraph.querySelector(
+            `g.node[data-index="${state.hoverIndex}"]`
+          );
+          if (previous) {
+            previous.classList.remove("is-active");
+          }
+          state.hoverIndex = null;
+          el.tooltip.hidden = true;
+          if (!options.keepPanel && state.root) {
+            updateSidePanel(state.viewRoot);
+          }
+        }
+
+        function showTooltip(event, entry) {
+          if (!entry) {
+            return;
+          }
+          const node = entry.node;
+          const totalSize = state.viewRoot ? state.viewRoot.size : node.size;
+          const percent = totalSize ? (node.size / totalSize) * 100 : 0;
+          const lines = [];
+          if (node.type === "other") {
+            lines.push(`Aggregated items: ${node.aggregateCount || 0}`);
+          } else if (node.type === "dir") {
+            lines.push(`Folders: ${numberFormat.format(node.dirCount)}`);
+            lines.push(`Files: ${numberFormat.format(node.fileCount)}`);
+          }
+          lines.push(`Size: ${formatBytes(node.size)}`);
+          lines.push(`Share: ${percent.toFixed(2)}%`);
+          lines.push(`Path: ${node.path}`);
+
+          el.tooltip.innerHTML = `
+            <div class="tooltip-title">${escapeHtml(node.name)}</div>
+            ${lines.map((line) => `<div class="tooltip-row">${escapeHtml(line)}</div>`).join("")}
+          `;
+
+          el.tooltip.hidden = false;
+          const pad = 16;
+          const rect = el.tooltip.getBoundingClientRect();
+          let x = event.clientX + pad;
+          let y = event.clientY + pad;
+          if (x + rect.width > window.innerWidth) {
+            x = event.clientX - rect.width - pad;
+          }
+          if (y + rect.height > window.innerHeight) {
+            y = event.clientY - rect.height - pad;
+          }
+          el.tooltip.style.left = `${Math.max(12, x)}px`;
+          el.tooltip.style.top = `${Math.max(12, y)}px`;
+        }
+      })();
+    </script>
+  </body>
+</html>
